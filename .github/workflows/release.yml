@@ -4,6 +4,10 @@ name: Release
 # Required repository secrets:
 #   TAURI_SIGNING_PRIVATE_KEY          content of ~/.tauri/theisle-overlay.key
 #   TAURI_SIGNING_PRIVATE_KEY_PASSWORD the key password ("" if none)
+#   TELEMETRY_MASTER                   32 random bytes as hex; same value as
+#                                      the Worker's ATTEST_MASTER secret.
+#                                      Optional: without it the build simply
+#                                      ships with telemetry disabled.
 on:
   push:
     tags: ["v*"]
@@ -30,9 +34,45 @@ jobs:
       - name: Install frontend dependencies
         run: npm ci
 
+      - name: Version consistency
+        shell: pwsh
+        run: ./scripts/check-versions.ps1
+
       - name: Gate on tests
         working-directory: src-tauri
         run: cargo test --workspace
+
+      # Derive the per-version signing key. Only the derived key is compiled
+      # into the binary; the master never leaves CI, so extracting one
+      # release's key does not compromise any other release — dropping that
+      # version server-side is enough to revoke it.
+      - name: Derive telemetry key
+        id: attest
+        shell: bash
+        env:
+          MASTER: ${{ secrets.TELEMETRY_MASTER }}
+        run: |
+          if [ -z "$MASTER" ]; then
+            echo "TELEMETRY_MASTER unset - shipping with telemetry disabled"
+            echo "key=" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          # Shipping a key with a placeholder endpoint would mean every ping
+          # fails silently, which is worse than shipping no telemetry at all.
+          if grep -q REPLACE_ME_SUBDOMAIN src-tauri/src/telemetry/client.rs; then
+            echo "::error::API_BASES still holds the placeholder subdomain."
+            echo "Set the real workers.dev URL in src-tauri/src/telemetry/client.rs,"
+            echo "or unset TELEMETRY_MASTER to ship without telemetry."
+            exit 1
+          fi
+          node -e '
+            const c = require("crypto");
+            const v = require("./package.json").version;
+            const k = c.hkdfSync("sha256", Buffer.from(process.env.MASTER, "hex"),
+                                 Buffer.from("isle-attest-v1"),
+                                 Buffer.from("app:" + v), 32);
+            console.log("key=" + Buffer.from(k).toString("hex"));
+          ' >> "$GITHUB_OUTPUT"
 
       - name: Build and publish
         uses: tauri-apps/tauri-action@v0
@@ -40,6 +80,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          TELEMETRY_KEY: ${{ steps.attest.outputs.key }}
         with:
           tagName: ${{ github.ref_name }}
           releaseName: "TheIsle Overlay ${{ github.ref_name }}"

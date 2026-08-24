@@ -13,16 +13,45 @@ use crate::pipeline;
 use crate::settings;
 use crate::state::{AppState, LockExt};
 use crate::store::{self, Waypoint};
+use crate::telemetry;
 
 #[tauri::command]
 pub fn get_settings(state: State<AppState>) -> Value {
     state.settings.lock_safe().clone()
 }
 
+/// Count the settings changes that are really feature use.
+///
+/// Reading the PATCH rather than the merged result is what makes this work:
+/// the patch contains exactly the keys someone just touched, so a toggle is
+/// counted once whether it came from the Settings screen or a hotkey, and an
+/// unrelated save counts nothing.
+fn count_settings_features(patch: &Value) {
+    let touched = |path: &[&str]| settings::get_path(patch, path).is_some();
+    if touched(&["minimap", "visible"]) {
+        telemetry::counters::track("minimap_toggle");
+    }
+    if touched(&["language"]) {
+        telemetry::counters::track("language_switch");
+    }
+    if touched(&["trail", "enabled"]) || touched(&["minimap", "show_trail"]) {
+        telemetry::counters::track("trail_view");
+    }
+    if touched(&["islepilot", "show_quests_panel"]) {
+        telemetry::counters::track("quests_open");
+    }
+    if let Some(layers) = patch.get("layers").and_then(Value::as_object) {
+        for _ in layers.keys() {
+            telemetry::counters::track("layer_toggle");
+        }
+    }
+}
+
 /// Deep-merge a partial patch into the settings, persist (debounced), and
 /// broadcast the full new settings to every window. Shared by the IPC command
 /// and the hotkey actions so both paths behave identically.
 pub fn apply_settings_patch(app: &AppHandle, patch: Value) -> Value {
+    count_settings_features(&patch);
     let state = app.state::<AppState>();
     let (old_language, merged) = {
         let mut s = state.settings.lock_safe();
@@ -127,6 +156,7 @@ pub fn add_waypoint_at_pixel(
     py: f64,
     name: String,
 ) -> Waypoint {
+    telemetry::counters::track("waypoint_add");
     let (x, y) = pixel_to_world(px, py, state.active_calibration());
     let wp = store::new_waypoint(&name, x, y, 0.0, None);
     let mut waypoints = state.waypoints.lock_safe();
@@ -138,6 +168,7 @@ pub fn add_waypoint_at_pixel(
 /// The "mark here" hotkey action: drop a waypoint at the current position.
 #[tauri::command]
 pub fn add_waypoint_here(app: AppHandle, state: State<AppState>, name: String) -> Option<Waypoint> {
+    telemetry::counters::track("waypoint_add");
     let current = state.tracker.lock_safe().current?;
     let wp = store::new_waypoint(&name, current.x, current.y, current.z, None);
     let mut waypoints = state.waypoints.lock_safe();
@@ -182,6 +213,7 @@ pub fn delete_waypoint(app: AppHandle, state: State<AppState>, id: String) -> bo
     waypoints.retain(|w| w.id != id);
     let removed = waypoints.len() != before;
     if removed {
+        telemetry::counters::track("waypoint_delete");
         persist_waypoints(&app, &waypoints);
     }
     removed
@@ -310,6 +342,9 @@ pub async fn set_basemap_source(app: AppHandle, source: String) -> Result<(), St
     }
     apply_settings_patch(&app, serde_json::json!({ "map": { "basemap": src.key() } }));
     pipeline::resync(&app);
+    // Counted here, not at entry: a failed imagery download leaves settings
+    // untouched, so it must leave the counter untouched too.
+    telemetry::counters::track("basemap_change");
     Ok(())
 }
 
@@ -528,6 +563,7 @@ pub fn resolve_coordinates(state: State<AppState>, text: String) -> Option<Resol
         overlay_core::NumberFormat::from_setting(settings::get_str(&s, &["number_format"], "auto"))
     };
     let (x, y, _z) = overlay_core::parse_coordinates(&text, format)?;
+    telemetry::counters::track("coord_resolve");
     let cal = state.active_calibration();
     let (px, py) = world_to_pixel(x, y, cal);
     Some(ResolvedCoords {
@@ -601,6 +637,7 @@ pub fn get_map_info(state: State<AppState>) -> MapInfo {
 /// arrives as `fetch://progress` events, completion as `fetch://finished`.
 #[tauri::command]
 pub fn fetch_data(app: AppHandle, force: bool) {
+    telemetry::counters::track("data_fetch");
     std::thread::spawn(move || {
         crate::fetch::run(&app, force);
     });
@@ -622,6 +659,7 @@ pub fn open_trails_folder(app: AppHandle) -> Result<(), String> {
 /// a documented deadlock/blank-window hazard on Windows.
 #[tauri::command]
 pub async fn islepilot_login(app: AppHandle, domain: String) -> Result<(), String> {
+    telemetry::counters::track("islepilot_login");
     crate::islepilot::start_login(&app, domain)
 }
 
@@ -650,6 +688,7 @@ pub async fn islepilot_set_cookie(
 /// creation deadlock reason as islepilot_login.
 #[tauri::command]
 pub async fn islepilot_token_login(app: AppHandle) -> Result<(), String> {
+    telemetry::counters::track("islepilot_login");
     crate::islepilot::start_token_login(&app)
 }
 

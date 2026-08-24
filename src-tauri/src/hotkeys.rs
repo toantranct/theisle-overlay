@@ -266,6 +266,9 @@ impl HotkeyManager {
 /// whether the change came from a hotkey or the Settings screen.
 fn dispatch(app: &AppHandle, action: &str) {
     log::info!("hotkey: {action}");
+    // Counted here rather than at each call site so the hotkey and the UI
+    // path to the same action stay one number.
+    crate::telemetry::counters::track("hotkey_used");
     match action {
         "toggle_minimap" => toggle_setting(app, "visible"),
         "toggle_click_through" => toggle_setting(app, "click_through"),

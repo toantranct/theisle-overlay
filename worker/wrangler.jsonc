@@ -1,0 +1,41 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "theisle-overlay-api",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-08-01",
+  "observability": { "enabled": true },
+
+  // Explicit rather than defaulted: preview URLs would publish this Worker at a
+  // second hostname that nothing needs and no one would think to check.
+  "workers_dev": true,
+  "preview_urls": false,
+
+  // Static assets are FREE and UNLIMITED - they never invoke the Worker and
+  // never count against the 100k/day request budget. The dashboard lives here
+  // for exactly that reason. Do NOT add `run_worker_first`: it would make
+  // these requests billable. Paths with no matching asset (/v1/*, /admin/*)
+  // fall through to the Worker automatically.
+  "assets": { "directory": "./public" },
+
+  "d1_databases": [
+    { "binding": "DB", "database_name": "isle", "database_id": "d73574f8-3c16-48e7-adc9-614fd33d1599" }
+  ],
+
+  "analytics_engine_datasets": [{ "binding": "AE", "dataset": "overlay" }],
+
+  // Counters live in the colo the Worker runs in, so these are PER-COLO, not
+  // global. That is fine: they exist to protect D1 and CPU from a flood, not
+  // to be an exact quota. `period` must be exactly 10 or 60.
+  "ratelimits": [
+    { "name": "RL_PING", "namespace_id": "1001", "simple": { "limit": 6, "period": 60 } },
+    { "name": "RL_WRITE", "namespace_id": "1002", "simple": { "limit": 3, "period": 60 } }
+  ],
+
+  "triggers": { "crons": ["10 2 * * *"] },
+
+  "vars": {
+    // Overridden per-environment. Used only to label data points so dev
+    // traffic can be filtered out of the dashboard.
+    "BUILD_ENV": "prod"
+  }
+}

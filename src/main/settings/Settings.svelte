@@ -11,7 +11,9 @@
     patchSettings,
     setBasemapSource,
     startFetchData,
+    submitFeedback,
     type BasemapSource,
+    type FeedbackCategory,
     type Settings,
   } from "$lib/api";
   import { t } from "$lib/i18n";
@@ -57,6 +59,28 @@
   }
 
   const BASEMAPS = ["vulnona", "islemaps_light", "islemaps_dark"] as const;
+
+  // --- feedback -------------------------------------------------------------
+  const FEEDBACK_CATEGORIES = ["bug", "idea", "other"] as const;
+  let feedbackCategory = $state<FeedbackCategory>("bug");
+  let feedbackBody = $state("");
+  let feedbackContact = $state("");
+  let feedbackState = $state<"idle" | "sending" | "sent" | "failed">("idle");
+
+  async function sendFeedback() {
+    if (!feedbackBody.trim() || feedbackState === "sending") return;
+    feedbackState = "sending";
+    try {
+      await submitFeedback(feedbackCategory, feedbackBody, feedbackContact);
+      feedbackBody = "";
+      feedbackContact = "";
+      feedbackState = "sent";
+    } catch {
+      // Deliberately vague: the user cannot act on "signature rejected" and
+      // the only useful advice is the same either way.
+      feedbackState = "failed";
+    }
+  }
 
   const CORNERS = ["top-left", "top-right", "bottom-left", "bottom-right"] as const;
 
@@ -260,6 +284,69 @@
       <div class="mt-3 text-xs leading-relaxed" style="color: var(--color-muted)">
         <div class="mb-1 font-semibold">{$t("credits.title")}</div>
         {$t("credits.body")}
+      </div>
+    </section>
+
+    <!-- Usage data & feedback -->
+    <section>
+      <h2 class="mb-2 font-semibold" style="color: var(--color-accent)">
+        {$t("telemetry.title")}
+      </h2>
+      <label class="flex cursor-pointer items-center gap-2 text-sm">
+        <input
+          type="checkbox"
+          checked={settings.telemetry?.enabled ?? true}
+          onchange={(e) => void patch({ telemetry: { enabled: e.currentTarget.checked } })}
+        />
+        {$t("telemetry.enabled")}
+      </label>
+      <p class="mt-2 text-xs leading-relaxed" style="color: var(--color-muted)">
+        {$t("telemetry.hint")}
+      </p>
+
+      <h3 class="mt-4 mb-2 text-sm font-semibold">{$t("feedback.title")}</h3>
+      <div class="mb-2 flex gap-1">
+        {#each FEEDBACK_CATEGORIES as cat (cat)}
+          <button
+            class="cursor-pointer rounded border px-2 py-1 text-xs"
+            style={feedbackCategory === cat
+              ? "background: var(--color-accent); color: var(--color-bg); border-color: var(--color-accent); font-weight: 600"
+              : "border-color: var(--color-border)"}
+            onclick={() => (feedbackCategory = cat)}
+          >
+            {$t(`feedback.cat_${cat}` as never)}
+          </button>
+        {/each}
+      </div>
+      <textarea
+        class="w-full rounded border p-2 text-sm"
+        style="border-color: var(--color-border); background: transparent"
+        rows="4"
+        maxlength="2000"
+        placeholder={$t("feedback.body")}
+        bind:value={feedbackBody}
+      ></textarea>
+      <input
+        class="mt-2 w-full rounded border p-2 text-sm"
+        style="border-color: var(--color-border); background: transparent"
+        maxlength="200"
+        placeholder={$t("feedback.contact")}
+        bind:value={feedbackContact}
+      />
+      <div class="mt-2 flex items-center gap-3">
+        <button
+          class="cursor-pointer rounded border px-3 py-1 text-sm disabled:opacity-50"
+          style="border-color: var(--color-border)"
+          disabled={feedbackState === "sending" || !feedbackBody.trim()}
+          onclick={() => void sendFeedback()}
+        >
+          {feedbackState === "sending" ? $t("feedback.sending") : $t("feedback.send")}
+        </button>
+        {#if feedbackState === "sent"}
+          <span class="text-xs" style="color: var(--color-muted)">{$t("feedback.sent")}</span>
+        {:else if feedbackState === "failed"}
+          <span class="text-xs" style="color: #ff8a80">{$t("feedback.failed")}</span>
+        {/if}
       </div>
     </section>
   </div>

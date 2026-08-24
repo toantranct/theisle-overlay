@@ -37,6 +37,13 @@ jobs:
         shell: pwsh
         run: ./scripts/check-forbidden-apis.ps1
 
+      # Load-bearing since telemetry: the release workflow derives the signing
+      # key from package.json's version and the app sends Cargo.toml's, so a
+      # drift means every request from that release is rejected.
+      - name: Version consistency
+        shell: pwsh
+        run: ./scripts/check-versions.ps1
+
       - name: Rust tests
         working-directory: src-tauri
         run: cargo test --workspace
@@ -44,3 +51,19 @@ jobs:
       - name: Clippy
         working-directory: src-tauri
         run: cargo clippy --workspace -- -D warnings
+
+  worker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: worker/package-lock.json
+      - name: Install
+        working-directory: worker
+        run: npm ci
+      - name: Typecheck
+        working-directory: worker
+        run: npm run typecheck

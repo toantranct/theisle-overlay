@@ -12,8 +12,10 @@
     onHotkeyFailed,
     onSettingsChanged,
     simulatePosition,
+    trackFeature,
     type DataStatus,
     type FailedHotkey,
+    type Feature,
   } from "$lib/api";
   import { locale, t, type Locale } from "$lib/i18n";
   import FullMap from "./fullmap/FullMap.svelte";
@@ -51,6 +53,21 @@
   // read above; nothing ever wrote it). replaceState: no history spam.
   $effect(() => {
     history.replaceState(null, "", `#${tab}`);
+  });
+  // Which tabs people actually open. Everything else is counted in Rust, so
+  // the hotkey and UI paths to the same action share one counter.
+  // Deliberately a total Record, not Partial: adding a tab without deciding
+  // how it is counted should be a compile error, not a silent zero.
+  const TAB_FEATURE: Record<Tab, Feature> = {
+    map: "fullmap_open",
+    dino: "dino3d_view",
+    garage: "islepilot_garage",
+    settings: "settings_open",
+    guide: "guide_open",
+    donate: "donate_open",
+  };
+  $effect(() => {
+    trackFeature(TAB_FEATURE[tab]);
   });
   // Dino + Garage tabs are KEPT ALIVE after their first visit (hidden with
   // display:none, not unmounted): both host a 3D viewer whose teardown/

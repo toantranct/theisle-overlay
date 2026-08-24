@@ -1,0 +1,5 @@
+# Copy to .dev.vars (gitignored) for `wrangler dev`.
+# ATTEST_MASTER must be 32 bytes as hex:
+#   node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+ATTEST_MASTER=0000000000000000000000000000000000000000000000000000000000000000
+ADMIN_TOKEN=local-dev-token

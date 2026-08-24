@@ -1,0 +1,53 @@
+name: Worker
+
+# Deploys the analytics API (worker/) to Cloudflare. Separate from the app
+# pipeline on purpose: the Worker ships on its own cadence, and a backend
+# tweak should not require tagging an app release.
+#
+# Required repository secrets:
+#   CLOUDFLARE_API_TOKEN   token scoped to "Edit Cloudflare Workers"
+#   CLOUDFLARE_ACCOUNT_ID  the account the Worker lives in
+#
+# Set ONCE by hand, not in CI (they are Worker secrets, not build inputs):
+#   cd worker
+#   npx wrangler secret put ATTEST_MASTER   # 32 random bytes, hex
+#   npx wrangler secret put ADMIN_TOKEN     # dashboard password
+#   npx wrangler secret put AE_QUERY_TOKEN  # Account Analytics Read
+#   npx wrangler secret put AE_ACCOUNT_ID
+#
+# ATTEST_MASTER must be the same value the release workflow derives
+# TELEMETRY_KEY from, or every client signature fails verification.
+
+on:
+  push:
+    branches: [main]
+    paths: ["worker/**", ".github/workflows/worker.yml"]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: worker/package-lock.json
+
+      - name: Install
+        working-directory: worker
+        run: npm ci
+
+      - name: Typecheck
+        working-directory: worker
+        run: npm run typecheck
+
+      - name: Deploy
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          workingDirectory: worker
+          command: deploy

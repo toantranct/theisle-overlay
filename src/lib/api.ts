@@ -49,6 +49,7 @@ export type Settings = Record<string, unknown> & {
   };
   number_format: "auto" | "us" | "eu";
   language: "vi" | "en";
+  telemetry: { enabled: boolean };
   islepilot: {
     enabled: boolean;
     /** "token" = one Steam login for every server; "legacy" = per-server cookie. */
@@ -481,3 +482,54 @@ export const onDinoLoginFailed = (
 /** Dev builds only. */
 export const simulatePosition = (x: number, y: number, z: number) =>
   invoke("simulate_position", { x, y, z });
+
+// ------------------------------------------------------------- telemetry ---
+
+/**
+ * Feature names the backend knows about. Mirrors `FEATURE_SLOTS` in
+ * `src-tauri/src/telemetry/counters.rs` and `worker/src/features.ts`; a Rust
+ * test fails if those two drift, and this union makes a typo here a compile
+ * error rather than a silently uncounted feature.
+ */
+export type Feature =
+  | "fullmap_open"
+  | "minimap_toggle"
+  | "waypoint_add"
+  | "waypoint_delete"
+  | "trail_view"
+  | "layer_toggle"
+  | "basemap_change"
+  | "islepilot_login"
+  | "islepilot_garage"
+  | "dino3d_view"
+  | "guide_open"
+  | "settings_open"
+  | "hotkey_used"
+  | "quests_open"
+  | "coord_resolve"
+  | "data_fetch"
+  | "donate_open"
+  | "language_switch";
+
+/**
+ * Count one use of a feature. Cheap and fire-and-forget: Rust increments an
+ * atomic and the total rides along on the next launch's single ping, so this
+ * is safe to call from a click handler in a hot path.
+ */
+export const trackFeature = (name: Feature): void => {
+  void invoke("track_feature", { name }).catch(() => {});
+};
+
+export type FeedbackCategory = "bug" | "idea" | "other";
+
+/** Rejects with "unavailable" | "send_failed". */
+export const submitFeedback = (
+  category: FeedbackCategory,
+  body: string,
+  contact?: string,
+) => invoke<void>("submit_feedback", { category, body, contact: contact || null });
+
+/** Report a frontend error. Windows account names are stripped in Rust. */
+export const submitCrash = (message: string, stack?: string): void => {
+  void invoke("submit_crash", { message, stack: stack ?? null }).catch(() => {});
+};

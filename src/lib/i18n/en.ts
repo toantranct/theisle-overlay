@@ -283,6 +283,23 @@ export const en: Record<MsgKey, string> = {
   "donate.copied": "Copied!",
   "donate.thanks": "Thank you for your support! ❤",
 
+
+  "telemetry.title": "Usage data & feedback",
+  "telemetry.enabled": "Send anonymous usage data",
+  "telemetry.hint":
+    "Only this: a random install id, the app version, the Windows build " +
+    "number, the UI language, and how many times each feature was used. No " +
+    "IP address, no in-game position, no Windows account name.",
+  "feedback.title": "Send feedback",
+  "feedback.cat_bug": "Bug",
+  "feedback.cat_idea": "Idea",
+  "feedback.cat_other": "Other",
+  "feedback.body": "Description (max 2000 characters)",
+  "feedback.contact": "How to reach you (optional)",
+  "feedback.send": "Send",
+  "feedback.sending": "Sending…",
+  "feedback.sent": "Sent. Thank you!",
+  "feedback.failed": "Could not send. Check your connection and try again.",
   "credits.title": "Data sources",
   "credits.body":
     "Basemap: VulnonaMAP (Coco.N) — stitched from in-game captures. " +

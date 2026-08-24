@@ -301,6 +301,24 @@ export const vi = {
   "donate.copied": "Đã copy!",
   "donate.thanks": "Cảm ơn bạn đã ủng hộ! ❤",
 
+
+  // --- số liệu sử dụng & phản hồi ---
+  "telemetry.title": "Số liệu sử dụng & phản hồi",
+  "telemetry.enabled": "Gửi số liệu sử dụng ẩn danh",
+  "telemetry.hint":
+    "Chỉ gồm: một mã cài đặt ngẫu nhiên, phiên bản app, số hiệu bản Windows, " +
+    "ngôn ngữ giao diện và số lần dùng từng tính năng. Không gửi địa chỉ IP, " +
+    "không gửi vị trí trong game, không gửi tên tài khoản Windows.",
+  "feedback.title": "Gửi phản hồi",
+  "feedback.cat_bug": "Lỗi",
+  "feedback.cat_idea": "Góp ý",
+  "feedback.cat_other": "Khác",
+  "feedback.body": "Mô tả (tối đa 2000 ký tự)",
+  "feedback.contact": "Cách liên hệ lại (không bắt buộc)",
+  "feedback.send": "Gửi",
+  "feedback.sending": "Đang gửi…",
+  "feedback.sent": "Đã gửi. Cảm ơn bạn!",
+  "feedback.failed": "Không gửi được. Kiểm tra mạng rồi thử lại.",
   // --- ghi công ---
   "credits.title": "Nguồn dữ liệu",
   "credits.body":

@@ -16,6 +16,7 @@ pub mod replay;
 pub mod settings;
 pub mod state;
 pub mod store;
+pub mod telemetry;
 pub mod translate;
 pub mod tray;
 pub mod webview_mem;
@@ -114,6 +115,9 @@ pub fn run(replay_file: Option<PathBuf>) {
             commands::islepilot_logout,
             commands::islepilot_apply,
             commands::islepilot_state,
+            telemetry::track_feature,
+            telemetry::submit_feedback,
+            telemetry::submit_crash,
             #[cfg(debug_assertions)]
             commands::simulate_position,
         ]);
@@ -193,6 +197,8 @@ pub fn run(replay_file: Option<PathBuf>) {
                 state.hotkeys.restart(app.handle().clone());
             }
             islepilot::restart_poller(app.handle());
+            // Last, and on its own thread: nothing above may wait on it.
+            telemetry::spawn(app.handle());
             if let Some(path) = replay_file {
                 replay::spawn(app.handle().clone(), path);
             }

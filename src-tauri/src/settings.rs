@@ -147,6 +147,13 @@ pub fn default_settings() -> Value {
             "break_after_metres": 200,
             "min_node_distance_m": 5,
         },
+        // Anonymous usage counts + crash reports. No IP is stored (the
+        // edge supplies a country code and the address is dropped), no game
+        // position ever leaves the machine, and Windows account names are
+        // stripped from crash text before it is sent.
+        "telemetry": {
+            "enabled": true,
+        },
         "number_format": "auto",         // auto | us | eu
         "language": "vi",                // vi | en
         // "Your dino" — IslePilot server-panel integration.
@@ -244,37 +251,27 @@ pub fn active_source(settings: &Value) -> overlay_core::MapSource {
 
 // -- typed accessors into the settings Value --------------------------------
 
-pub fn get_f64(settings: &Value, path: &[&str], default: f64) -> f64 {
+/// Walk a nested key path. `None` when any step is missing — which is also
+/// how callers tell "absent" from "present but false", the distinction a
+/// patch inspection depends on.
+pub fn get_path<'a>(settings: &'a Value, path: &[&str]) -> Option<&'a Value> {
     let mut cur = settings;
     for key in path {
-        match cur.get(key) {
-            Some(v) => cur = v,
-            None => return default,
-        }
+        cur = cur.get(key)?;
     }
-    cur.as_f64().unwrap_or(default)
+    Some(cur)
+}
+
+pub fn get_f64(settings: &Value, path: &[&str], default: f64) -> f64 {
+    get_path(settings, path).and_then(Value::as_f64).unwrap_or(default)
 }
 
 pub fn get_bool(settings: &Value, path: &[&str], default: bool) -> bool {
-    let mut cur = settings;
-    for key in path {
-        match cur.get(key) {
-            Some(v) => cur = v,
-            None => return default,
-        }
-    }
-    cur.as_bool().unwrap_or(default)
+    get_path(settings, path).and_then(Value::as_bool).unwrap_or(default)
 }
 
 pub fn get_str<'a>(settings: &'a Value, path: &[&str], default: &'a str) -> &'a str {
-    let mut cur = settings;
-    for key in path {
-        match cur.get(key) {
-            Some(v) => cur = v,
-            None => return default,
-        }
-    }
-    cur.as_str().unwrap_or(default)
+    get_path(settings, path).and_then(Value::as_str).unwrap_or(default)
 }
 
 #[cfg(test)]
