@@ -756,7 +756,18 @@
   onDestroy(() => {
     destroyed = true;
     try {
-      map?.remove();
+      if (map) {
+        // Leaflet ends a zoom animation on a 250 ms timer (Map._animateZoom,
+        // its transitionend workaround) that outlives remove(): remove()
+        // deletes _mapPane but never clears _animatingZoom, so the timer's
+        // _onZoomTransitionEnd goes on to _move() and dereferences the gone
+        // pane. Field crash on 1.5.1: "Cannot read properties of undefined
+        // (reading '_leaflet_pos')" — a wheel zoom followed by a tab switch
+        // within 250 ms. Nothing public cancels a zoom animation; the
+        // handler's own first line is this flag, so clear it.
+        (map as unknown as { _animatingZoom?: boolean })._animatingZoom = false;
+        map.remove();
+      }
     } catch {
       // A torn-down Leaflet must not poison the next mount of this tab.
     }
