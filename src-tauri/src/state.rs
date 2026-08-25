@@ -39,6 +39,8 @@ pub struct AppState {
     /// action `take()`s it so the dimmed previous trail stays hidden for the
     /// rest of the session (the file itself is untouched).
     pub previous_trail_path: Mutex<Option<PathBuf>>,
+    /// Last `get_pois_render` result; see the cache's own doc for the key.
+    pub pois_cache: Mutex<Option<crate::commands::PoisCache>>,
     started: Instant,
     save_debouncer: SettingsDebouncer,
 }
@@ -76,6 +78,7 @@ impl AppState {
             trail_writer: Mutex::new(writer),
             waypoints: Mutex::new(store::load_waypoints()),
             previous_trail_path: Mutex::new(store::latest_trail_path()),
+            pois_cache: Mutex::new(None),
             settings: Mutex::new(settings),
             started: Instant::now(),
             save_debouncer: SettingsDebouncer::new(),

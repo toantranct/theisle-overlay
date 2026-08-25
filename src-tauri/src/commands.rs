@@ -355,7 +355,7 @@ pub fn get_pois() -> Result<Value, String> {
     serde_json::from_str(&text).map_err(|e| e.to_string())
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct PoiItem {
     pub label: String,
@@ -378,13 +378,24 @@ pub struct PoiItem {
     pub label_py: Option<f64>,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct PoiLayer {
     pub key: String,
     /// "point" | "zone"
     pub kind: String,
     pub items: Vec<PoiItem>,
+}
+
+/// `get_pois_render` output for one (basemap, file) pair. The projection
+/// depends on the active calibration, so the source is part of the key; the
+/// file's mtime+len is the rest, which lets a re-download or an offline
+/// upgrade of pois_gateway.json invalidate it without anyone remembering to.
+pub struct PoisCache {
+    source: MapSource,
+    mtime: Option<std::time::SystemTime>,
+    len: u64,
+    layers: Vec<PoiLayer>,
 }
 
 /// One POI record -> render item, or None when it carries no usable geometry.
@@ -466,10 +477,37 @@ fn poi_render_item(item: &Value, kind: &str, cal: &Calibration) -> Option<PoiIte
 
 /// POI layers with every coordinate already converted to basemap pixels —
 /// the frontend renders, it never transforms.
+///
+/// Cached. Three callers — the full map on mount and after every fetch, and
+/// the minimap window on its own — each used to read, parse and re-project
+/// the whole 120 KB file (~630 items, ~1,300 polygon vertices) for a result
+/// that only changes when the file or the basemap does.
 #[tauri::command]
 pub fn get_pois_render(state: State<AppState>) -> Result<Vec<PoiLayer>, String> {
-    let cal = state.active_calibration();
-    let text = std::fs::read_to_string(settings::pois_path()).map_err(|e| e.to_string())?;
+    let source = state.active_source();
+    let path = settings::pois_path();
+    let meta = std::fs::metadata(&path).map_err(|e| e.to_string())?;
+    let mtime = meta.modified().ok();
+    let len = meta.len();
+
+    if let Some(c) = state.pois_cache.lock_safe().as_ref() {
+        if c.source == source && c.mtime == mtime && c.len == len {
+            return Ok(c.layers.clone());
+        }
+    }
+
+    let layers = render_pois(&path, source.calibration())?;
+    *state.pois_cache.lock_safe() = Some(PoisCache {
+        source,
+        mtime,
+        len,
+        layers: layers.clone(),
+    });
+    Ok(layers)
+}
+
+fn render_pois(path: &std::path::Path, cal: &Calibration) -> Result<Vec<PoiLayer>, String> {
+    let text = std::fs::read_to_string(path).map_err(|e| e.to_string())?;
     let raw: Value = serde_json::from_str(&text).map_err(|e| e.to_string())?;
     let Some(layers) = raw.get("layers").and_then(|l| l.as_object()) else {
         return Ok(Vec::new());

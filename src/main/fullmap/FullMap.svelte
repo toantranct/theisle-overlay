@@ -5,7 +5,7 @@
   // frontend never runs a world<->pixel transform. On a basemap switch the
   // whole component is remounted by App.svelte ({#key}) — every layer's px
   // changes together with the imageOverlay.
-  import { onDestroy, onMount } from "svelte";
+  import { onDestroy, onMount, untrack } from "svelte";
   import L from "leaflet";
   import "leaflet/dist/leaflet.css";
   import {
@@ -69,13 +69,23 @@
 
   const toLatLng = (px: number, py: number): L.LatLngTuple => [-py, px];
 
+  // App.svelte keeps this component mounted across tab switches and says
+  // whether its tab is the one on screen. Hidden means: keep the Leaflet
+  // instance, do no per-sample work.
+  let { visible = true }: { visible?: boolean } = $props();
+
   let mapEl: HTMLDivElement;
   let map: L.Map | undefined;
-  // Set by onDestroy. The onMount loader awaits several IPC calls; a tab
-  // switch (or a basemap remount via {#key}) during any of them tears `map`
-  // down, so every resume re-checks this before touching the map. Field
-  // crash: "Cannot read properties of undefined (reading 'on')" on a slow
-  // first load.
+  let mapBounds: L.LatLngBoundsExpression | null = null;
+  // True when fitBounds ran against a hidden (0x0) container because the tab
+  // was switched away mid-load. The zoom it computed is meaningless and is
+  // redone on the next show.
+  let fitPending = false;
+  // Set by onDestroy. The onMount loader awaits several IPC calls; a basemap
+  // remount via {#key} (a tab switch no longer unmounts — see `visible`)
+  // during any of them tears `map` down, so every resume re-checks this
+  // before touching the map. Field crash: "Cannot read properties of
+  // undefined (reading 'on')" on a slow first load.
   let destroyed = false;
   let layerGroups: Record<string, L.LayerGroup> = {};
   // Image overlays (fresh water). Separate from layerGroups so POI rebuilds
@@ -93,6 +103,13 @@
   let settings = $state<Settings | null>(null);
   let position = $state<PositionUpdate | null>(null);
   let nearest = $state<NearestWaypoint | null>(null);
+  // The newest sample/trail that arrived while the tab was hidden. Nothing is
+  // painted for them until the tab shows again: keeping the map alive must
+  // not become a map that pans, re-projects and round-trips to Rust for the
+  // nearest waypoint on every sample while nobody is looking at it — that
+  // would trade a rebuild-per-visit for a cost-per-sample and come out worse.
+  let parkedPosition: PositionUpdate | null = null;
+  let parkedTrail: TrailPayload | null = null;
   let availableLayers = $state<string[]>([]);
   let promptOpen = $state(false);
   let pendingPixel: { px: number; py: number } | null = null;
@@ -194,6 +211,10 @@
     // The rebuild tore the IslePilot group down with the rest — restore it
     // from the cached data, no refetch.
     if (islepilotData) buildIslepilotLayer(islepilotData);
+    // The groups above were built straight from `settings`, so they already
+    // match; forgetting the memo anyway means the next apply does one real
+    // pass rather than trusting that to stay true through future edits.
+    appliedLayerState = "";
   }
 
   // --- IslePilot live server POIs (token mode) -----------------------------
@@ -425,8 +446,18 @@
     nearest = await getNearestWaypoint();
   }
 
+  // The last layer state actually applied. Two callers hit this per layer
+  // click — the click handler, then the settings broadcast looping back — and
+  // every settings broadcast of any kind lands here too: an opacity hotkey, a
+  // language switch, the telemetry checkbox. Comparing first turns all of
+  // those into a no-op instead of a sweep over every Leaflet group.
+  let appliedLayerState = "";
+
   function applyLayerVisibility(layers: Record<string, boolean>, zoneLabels: boolean) {
     if (!map) return;
+    const next = JSON.stringify(layers) + (zoneLabels ? "|1" : "|0");
+    if (next === appliedLayerState) return;
+    appliedLayerState = next;
     const setVisible = (group: L.LayerGroup, visible: boolean) => {
       if (visible && !map!.hasLayer(group)) group.addTo(map!);
       if (!visible && map!.hasLayer(group)) map!.removeLayer(group);
@@ -559,6 +590,46 @@
     return true;
   }
 
+  function applyPosition(p: PositionUpdate, animate = true) {
+    position = p;
+    if (!map) return;
+    upsertPlayer(p);
+    if (follow) map.panTo(toLatLng(p.px, p.py), { animate });
+    updateEdgeArrow();
+  }
+
+  // Coming back from display:none. Leaflet measured a 0x0 container while
+  // hidden — without invalidateSize the view paints blank or offset — then
+  // whatever was parked meanwhile is applied once, without animating across
+  // what may be a long jump.
+  $effect(() => {
+    if (!visible || !map) return;
+    // untrack: the work below both writes and reads $state (position,
+    // edgeArrow, nearest via applyPosition). Tracked, that made this effect
+    // depend on `position` and re-run itself on the next sample after every
+    // show. Its only real input is `visible`, read above.
+    untrack(() => {
+      map!.invalidateSize({ animate: false });
+      if (fitPending && mapBounds) {
+        fitPending = false;
+        // No animation: it would tween from the meaningless hidden-container
+        // zoom, and the user is arriving on a tab, not watching a transition.
+        map!.fitBounds(mapBounds, { animate: false });
+      }
+      const trail = parkedTrail;
+      parkedTrail = null;
+      if (trail && currentTrail) drawTrail(currentTrail, trail, false);
+      const p = parkedPosition;
+      parkedPosition = null;
+      if (p) {
+        applyPosition(p, false);
+        void getNearestWaypoint().then((n) => {
+          if (!destroyed) nearest = n;
+        });
+      }
+    });
+  });
+
   onMount(() => {
     (async () => {
       settings = await getSettings();
@@ -587,7 +658,9 @@
       const urls = await getBasemapUrls();
       if (destroyed || !map) return;
       L.imageOverlay(urls.fullmap, bounds).addTo(map);
+      mapBounds = bounds;
       map.fitBounds(bounds);
+      fitPending = !visible;
       map.setMaxBounds([
         [-H * 1.15, -W * 0.15],
         [H * 0.15, W * 1.15],
@@ -626,16 +699,20 @@
 
       await bag.add(
         onPositionUpdate(async (p) => {
-          position = p;
-          if (!map) return;
-          upsertPlayer(p);
-          if (follow) map.panTo(toLatLng(p.px, p.py));
-          updateEdgeArrow();
+          if (!visible) {
+            parkedPosition = p;
+            return;
+          }
+          applyPosition(p);
           nearest = await getNearestWaypoint();
         }),
       );
       await bag.add(
         onTrailChanged((trail) => {
+          if (!visible) {
+            parkedTrail = trail;
+            return;
+          }
           if (currentTrail) drawTrail(currentTrail, trail, false);
         }),
       );

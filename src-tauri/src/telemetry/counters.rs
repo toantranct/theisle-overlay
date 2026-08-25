@@ -22,7 +22,7 @@ pub const FEATURE_SLOTS: [&str; 18] = [
     "basemap_change",
     "islepilot_login",
     "islepilot_garage",
-    "dino3d_view",
+    "dino_tab_open",
     "guide_open",
     "settings_open",
     "hotkey_used",

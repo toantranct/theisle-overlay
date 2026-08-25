@@ -60,22 +60,36 @@
   // how it is counted should be a compile error, not a silent zero.
   const TAB_FEATURE: Record<Tab, Feature> = {
     map: "fullmap_open",
-    dino: "dino3d_view",
+    dino: "dino_tab_open",
     garage: "islepilot_garage",
     settings: "settings_open",
     guide: "guide_open",
     donate: "donate_open",
   };
+  // The first run of this effect is where the app OPENED — the default tab,
+  // or whatever hash a reload restored — not somewhere the user went. It is
+  // skipped: counting it inflated fullmap_open by one per launch, and
+  // launches are already counted on the Rust side.
+  let tabEffectPrimed = false;
   $effect(() => {
-    trackFeature(TAB_FEATURE[tab]);
+    const feature = TAB_FEATURE[tab];
+    if (!tabEffectPrimed) {
+      tabEffectPrimed = true;
+      return;
+    }
+    trackFeature(feature);
   });
-  // Dino + Garage tabs are KEPT ALIVE after their first visit (hidden with
-  // display:none, not unmounted): both host a 3D viewer whose teardown/
-  // rebuild made tab switching visibly laggy. First visit still lazy-mounts
-  // so an untouched tab costs nothing.
+  // Map, Dino and Garage tabs are KEPT ALIVE after their first visit (hidden
+  // with display:none, not unmounted). Dino/Garage host a 3D viewer whose
+  // teardown/rebuild made tab switching visibly laggy; the map is a Leaflet
+  // instance over ~630 POI objects behind a 16-call IPC chain, and telemetry
+  // shows people come back to it about twice a session. First visit still
+  // lazy-mounts so an untouched tab costs nothing.
+  let visitedMap = $state(false);
   let visitedDino = $state(false);
   let visitedGarage = $state(false);
   $effect(() => {
+    if (tab === "map") visitedMap = true;
     if (tab === "dino") visitedDino = true;
     if (tab === "garage") visitedGarage = true;
   });
@@ -260,17 +274,27 @@
   <main class="min-h-0 flex-1">
     {#if !ready}
       <div class="p-6" style="color: var(--color-muted)">…</div>
-    {:else if tab === "map"}
+    {:else if tab === "map" && !dataOk}
       <!-- Only the map needs the downloaded data; the other tabs must stay
-           usable during (and before) the first-run download. -->
-      {#if !dataOk}
-        <FirstRun oncomplete={() => void getDataStatus().then((d) => (dataStatus = d))} />
-      {:else}
-        <!-- Error-isolated like DinoTab: a Leaflet throw must not take the
-             whole shell (and its tab bar) down with it. -->
+           usable during (and before) the first-run download. The map itself
+           lives in the kept-alive block below. -->
+      <FirstRun oncomplete={() => void getDataStatus().then((d) => (dataStatus = d))} />
+    {:else if tab === "settings"}
+      <div class="h-full overflow-y-auto"><Settings /></div>
+    {:else if tab === "donate"}
+      <div class="h-full overflow-y-auto"><Donate /></div>
+    {:else if tab === "guide"}
+      <div class="h-full overflow-y-auto"><Guide /></div>
+    {/if}
+    <!-- Kept-alive tabs (see visitedMap/visitedDino/visitedGarage above).
+         All are error-isolated: a Leaflet throw, a failure in the IslePilot
+         integration or the 3D viewer must never take down the shell (and
+         its tab bar) or any other feature. -->
+    {#if ready && dataOk && visitedMap}
+      <div class="h-full min-h-0" style:display={tab === "map" ? null : "none"}>
         {#key basemapSource}
           <svelte:boundary>
-            <FullMap />
+            <FullMap visible={tab === "map"} />
             {#snippet failed(_error, reset)}
               <div class="mx-auto max-w-lg p-8">
                 <p class="mb-3 text-sm" style="color: #ff8a80">{$t("map.crashed")}</p>
@@ -285,17 +309,8 @@
             {/snippet}
           </svelte:boundary>
         {/key}
-      {/if}
-    {:else if tab === "settings"}
-      <div class="h-full overflow-y-auto"><Settings /></div>
-    {:else if tab === "donate"}
-      <div class="h-full overflow-y-auto"><Donate /></div>
-    {:else if tab === "guide"}
-      <div class="h-full overflow-y-auto"><Guide /></div>
+      </div>
     {/if}
-    <!-- Kept-alive tabs (see visitedDino/visitedGarage above). Both are
-         error-isolated: a failure in the IslePilot integration or the 3D
-         viewer must never take down the map or any other feature. -->
     {#if ready && visitedDino}
       <div class="h-full overflow-y-auto" style:display={tab === "dino" ? null : "none"}>
         <svelte:boundary>
