@@ -183,14 +183,18 @@
           </div>
         </div>
 
-        {#each [["size_px", "settings.size", 180, 400, 10, "px"], ["margin_px", "settings.margin", 0, 64, 2, "px"], ["opacity", "settings.opacity", 0.25, 1, 0.05, ""], ["radius_m", "settings.radius", 150, 3000, 50, "m"]] as [key, labelKey, min, max, step, unit] (key)}
+        {#each [["size_px", "settings.size", 180, 400, 10, "px"], ["margin_px", "settings.margin", 0, 64, 2, "px"], ["opacity", "settings.opacity", 0.25, 1, 0.05, ""], ["radius_m", "settings.radius", 150, 3000, 50, "m"], ["zoom", "settings.zoom", 0.5, 2, 0.05, "x"]] as [key, labelKey, min, max, step, unit] (key)}
           <label class="block text-sm">
             <div class="mb-0.5 flex justify-between">
               <span>{$t(labelKey as never)}</span>
               <span class="font-mono" style="color: var(--color-muted)">
-                {key === "opacity"
-                  ? `${Math.round((settings.minimap.opacity as number) * 100)}%`
-                  : `${(settings.minimap as never as Record<string, number>)[key as string]} ${unit}`}
+                {#if key === "opacity"}
+                  {`${Math.round((settings.minimap.opacity as number) * 100)}%`}
+                {:else if key === "zoom"}
+                  {`${(settings.minimap.zoom as number).toFixed(2)}${unit}`}
+                {:else}
+                  {`${(settings.minimap as never as Record<string, number>)[key as string]} ${unit}`}
+                {/if}
               </span>
             </div>
             <input

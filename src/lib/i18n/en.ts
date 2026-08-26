@@ -110,6 +110,7 @@ export const en: Record<MsgKey, string> = {
   "settings.margin": "Margin",
   "settings.opacity": "Opacity",
   "settings.radius": "View radius",
+  "settings.zoom": "Zoom ratio",
   "settings.hotkeys": "Hotkeys",
   "settings.hotkeys_hint":
     "Click a key field, then press the new combination. At least one modifier (Ctrl/Alt/Shift/Win) is required.",

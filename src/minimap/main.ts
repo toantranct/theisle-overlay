@@ -110,7 +110,13 @@ function applySettings(s: Settings) {
   settings = s;
   const mm = s.minimap ?? {};
   state.sizePx = Number(mm.size_px ?? 260);
-  state.radiusM = Number(mm.radius_m ?? 600);
+  // Zoom is a multiplier on the view radius: 2.0 = see half the area
+  // (zoomed in), 0.5 = see double the area (zoomed out). The slider range
+  // and the legacy zoom_in/zoom_out hotkeys both pivot on this number, so
+  // clamping here keeps the render math safe from a stray 0.
+  const baseRadius = Number(mm.radius_m ?? 600);
+  const zoom = Math.max(0.25, Math.min(4, Number(mm.zoom ?? 1.0)));
+  state.radiusM = baseRadius / zoom;
   state.opacity = Number(mm.opacity ?? 0.85);
   state.showTrail = Boolean(mm.show_trail ?? true);
   state.showWaypoints = Boolean(mm.show_waypoints ?? true);

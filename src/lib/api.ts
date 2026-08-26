@@ -34,6 +34,9 @@ export type Settings = Record<string, unknown> & {
     margin_px: number;
     opacity: number;
     radius_m: number;
+    /** Multiplier on the view radius: 2.0 = zoomed in 2x (half the area),
+     *  0.5 = zoomed out (double the area). Effective radius = radius_m / zoom. */
+    zoom: number;
     click_through: boolean;
     show_trail: boolean;
     show_waypoints: boolean;

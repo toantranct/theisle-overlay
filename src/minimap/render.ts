@@ -492,7 +492,9 @@ function drawDinoPanel(ctx: CanvasRenderingContext2D, state: MinimapState, size:
 
   const rowH = 16;
   const barX = 30;
-  const barW = size - 8 - barX - 44;
+  // Right padding sized for "999/999 (100%)" so the wider readout never
+  // crashes into the bar's right edge (was 44, sized only for "999/999").
+  const barW = size - 8 - barX - 84;
   rows.forEach((row, i) => {
     const y = top + 6 + i * rowH + rowH / 2;
     ctx.textAlign = "left";
@@ -515,11 +517,17 @@ function drawDinoPanel(ctx: CanvasRenderingContext2D, state: MinimapState, size:
 
     ctx.textAlign = "right";
     ctx.fillStyle = COLORS.text;
-    ctx.fillText(
-      row.cur !== null && row.max !== null ? `${Math.round(row.cur)}/${Math.round(row.max)}` : "—",
-      size - 12,
-      y,
-    );
+    // "75/100 (75%)" - the parenthetical is the remaining percentage (the
+    // same number the bar visually fills to), so a glance confirms the bar
+    // without reading two scales. Use the same truthy guard as the bar
+    // branch above so a max of 0 (e.g. uninitialised stamina) renders the
+    // em-dash placeholder instead of "0/0 (NaN%)".
+    if (row.cur !== null && row.max) {
+      const pct = Math.round((row.cur / row.max) * 100);
+      ctx.fillText(`${Math.round(row.cur)}/${Math.round(row.max)} (${pct}%)`, size - 12, y);
+    } else {
+      ctx.fillText("—", size - 12, y);
+    }
   });
 
   // Growth line.
