@@ -104,7 +104,7 @@ fn on_ready(app: &AppHandle) {
 /// only happens on change.
 /// Height of the dino-stats strip under the map disc, logical px. Must match
 /// PANEL_H in src/minimap/render.ts.
-const DINO_PANEL_H: f64 = 76.0;
+const DINO_PANEL_H: f64 = 80.0;
 /// One extra stats row (stamina, token mode only). Must match PANEL_ROW_H in
 /// src/minimap/render.ts.
 const DINO_PANEL_ROW_H: f64 = 16.0;

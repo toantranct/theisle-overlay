@@ -26,7 +26,7 @@ export interface DinoBars {
 }
 
 /** Must match DINO_PANEL_H in src-tauri/src/minimap.rs. */
-export const PANEL_H = 76;
+export const PANEL_H = 80;
 /** One extra stats row (stamina). Must match DINO_PANEL_ROW_H in minimap.rs. */
 export const PANEL_ROW_H = 16;
 
