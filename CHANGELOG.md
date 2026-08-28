@@ -4,6 +4,33 @@ Mọi thay đổi đáng chú ý của TheIsle Overlay được ghi tại đây,
 [Keep a Changelog](https://keepachangelog.com/vi/1.1.0/) và đánh số phiên bản
 [SemVer](https://semver.org/lang/vi/). Mã trong ngoặc là commit tương ứng.
 
+## [Chưa phát hành]
+
+### Thêm
+
+- **Tỷ lệ thu phóng minimap** (`minimap.zoom`, mặc định 1.0×): bộ trượt mới
+  trong Cài đặt › Bản đồ nhỏ, khoảng 0.5× đến 2×. Hoạt động **cộng dồn** với
+  "Bán kính vùng nhìn": radius chia cho zoom, nên bán kính 600 m với zoom 2×
+  cho vùng nhìn thực 300 m (phóng to gấp đôi), 0.5× cho 1200 m (thu nhỏ một
+  nửa). Ngưỡng mũi tên waypoint ở rìa và bộ lọc khoảng cách POI cũng bám
+  theo. Phím tắt `Ctrl+Alt+Right/Left` (zoom in/out) vẫn dùng được như cũ.
+  (`f024058`)
+- **% còn lại sau HP / đói / khát / thể lực trên dải chỉ số của minimap**:
+  thay vì chỉ `75/100`, giờ hiện `75/100 (75%)` — số trong ngoặc là phần trăm
+  hiện có, khớp với thanh bar bên cạnh để liếc một cái là biết tình trạng.
+  Thanh bar được rút ngắn lại cho vừa chỗ, định dạng `—` vẫn giữ khi dữ liệu
+  chưa có. Đã sửa lỗi chia cho 0 ở nhánh text (khi `max = 0`, ví dụ stamina
+  chưa khởi tạo) bằng cách dùng cùng truthy guard với nhánh thanh bar — trước
+  đây hiện `0/0 (NaN%)`. (`f024058`)
+
+### Sửa
+
+- **Dải chỉ số minimap cao thêm 4px** (`PANEL_H` 76 → 80): chừa chỗ cho
+  dòng "Growth XX%" cuối panel khỏi sát mép dưới; trước đây dễ bị cảm giác
+  bị cắt ở kích thước minimap nhỏ hoặc DPI cao. (`2b374f4` đã sửa race lúc
+  khởi động khiến dòng Growth và panel Prime bị cắt; thay đổi này chỉ thêm
+  4 px thoáng dưới dòng Growth.)
+
 ## [1.5.2] — 2026-08-25
 
 ### Thay đổi

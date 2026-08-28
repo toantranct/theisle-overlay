@@ -122,6 +122,7 @@ export const vi = {
   "settings.margin": "Cách mép",
   "settings.opacity": "Độ đậm",
   "settings.radius": "Bán kính vùng nhìn",
+  "settings.zoom": "Tỷ lệ thu phóng",
   "settings.hotkeys": "Phím tắt",
   "settings.hotkeys_hint":
     "Bấm vào ô phím rồi nhấn tổ hợp mới. Cần ít nhất một phím bổ trợ (Ctrl/Alt/Shift/Win).",

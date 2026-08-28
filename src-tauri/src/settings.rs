@@ -104,6 +104,7 @@ pub fn default_settings() -> Value {
             "margin_px": 16,
             "opacity": 0.85,             // 0.25 - 1.0
             "radius_m": 600,             // real-world radius shown around the player
+            "zoom": 1.0,                 // 0.5 - 2.0: multiplier on the view radius (2.0 = zoomed in 2x)
             "click_through": true,
             "show_trail": true,          // trail lines on the minimap disc
             "show_waypoints": true,      // waypoint dots + nearest-waypoint arrow
@@ -302,6 +303,7 @@ mod tests {
         assert_eq!(merged["minimap"]["opacity"], 0.5);
         assert_eq!(merged["minimap"]["size_px"], 260, "defaults still present");
         assert_eq!(merged["minimap"]["require_game"], true, "new key gets its default");
+        assert_eq!(merged["minimap"]["zoom"], 1.0, "new zoom key defaults to 1.0x");
         assert_eq!(merged["hotkeys"]["toggle_minimap"], "Ctrl+Shift+M");
         assert_eq!(merged["hotkeys"]["toggle_fullmap"], "Ctrl+Alt+F");
         assert_eq!(merged["layers"]["food"], true);
